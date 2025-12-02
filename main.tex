@@ -1,0 +1,1929 @@
+\documentclass[10pt, a4paper]{article}
+\usepackage{geometry} % Set margins
+\usepackage{amsmath, amssymb}     % For math symbols (union, intersection, etc.)
+\usepackage{algorithm}            % (kept for algorithm counter compatibility)
+\usepackage{algpseudocode}        % For pseudocode formatting (\ForAll available)
+\usepackage{booktabs}             % For professional tables
+\usepackage{graphicx}             % For images
+\usepackage[hyphens]{url}         % To handle long URLs in the bibliography
+\usepackage{hyperref}             % For clickable URLs and references
+\usepackage{parskip}              % Add space between paragraphs, no indent
+\usepackage{amsthm}               % For proof environments
+\usepackage{float}                % Provides [H] placement for floats (we won't use floating algorithms)
+\usepackage{enumitem}             % Better control of lists
+\usepackage{tabularx}             % Auto-sizing table columns
+\usepackage{adjustbox}            % Scale tables/algorithms to \textwidth
+\usepackage{microtype}            % Improves typography and reduces overfull boxes
+\usepackage{xcolor}               % Colored box comments if needed
+\usepackage{caption}              % Better caption control
+\usepackage{array}
+\usepackage{tcolorbox}
+\tcbuselibrary{breakable}
+\geometry{top=1in, bottom=1in, left=0.8in, right=1in}
+\usepackage{pdflscape}
+\usepackage{subcaption}
+
+\title{\Huge \bfseries Maximum Clique Problem}
+\author{Arpit Mahtele, Dev Patel, Raunak Gupta, Shaurya Kochar and Vibhu Nimalan Bharathi}
+\date{November 2025}
+
+% --------------------------
+% Breakable algorithm env
+% --------------------------
+
+% A simple non-floating algorithm environment that allows page breaks.
+% Use: \begin{breakablealgorithm}[Caption text] ... \end{breakablealgorithm}
+\newcounter{algorithm} % ensure algorithm counter exists (algorithm package also defines it)
+\renewcommand{\thealgorithm}{\arabic{algorithm}}
+\makeatletter
+\newenvironment{breakablealgorithm}[1][]% optional caption text
+{%
+  \refstepcounter{algorithm}% increment algorithm counter from algorithm package
+  \begin{tcolorbox}[
+    enhanced,
+    breakable,
+    sharp corners,
+    boxrule=0.6pt,        % border thickness
+    arc=0pt,              % no rounded corners; change if you want rounded
+    left=2mm,
+    right=2mm,
+    top=1mm,
+    bottom=1mm,
+    colback=white,
+    colframe=blue,
+    fonttitle=\bfseries,
+    title={Algorithm \thealgorithm\ifx&#1&\else: #1\fi} % shows "Algorithm <n>: <caption>"
+  ]%
+  \begin{algorithmic}[1]%
+}%
+{%
+  \end{algorithmic}%
+  \end{tcolorbox}%
+}
+\makeatother
+
+\begin{document}
+\maketitle
+
+%-----Introduction-----%
+
+\section{Introduction}
+In computer science, the \textbf{maximum clique problem (MCP)} is the computational problem of finding cliques with the maximum number of vertices in a graph $G=(V,E)$, where a \textbf{clique} is a subset of the vertices, $C \subseteq V$, such that for every two distinct vertices in $C$, there exists an edge connecting them.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{clique.png}
+    \caption{4-Clique in 7 vertex graph}
+    \label{fig:placeholder}
+\end{figure}
+This problem is \textbf{NP-Complete}. Therefore, MCP currently can't be solved in polynomial time. Håstad (1996) proves that for any $\epsilon > 0$ there is no polynomial-time algorithm that can approximate Maximum Clique within a factor of $n^{1-\epsilon}$ unless P = NP. MCP has real world relevance in the areas of bioinformatics, computational chemistry and social networks. Its applications will be discussed further.
+\par
+This report analyses a spectrum of MCP algorithms ranging from greedy heuristics, randomised heuristics and simulated annealing to advanced exact solvers such as Bron–Kerbosch variants, Tomita’s algorithm, Östergård’s algorithm, and the bit-parallel BBMC algorithm. By benchmarking these methods on diverse graph instances, including synthetic, adversarial, and real-world datasets, we aim to characterize each algorithm's strengths and weaknesses with respect to efficiency, memory usage and solution quality.
+
+%-----Introduction-----%
+
+%-----Algorithms-----%
+
+\section{Algorithms}
+
+%-----Greedy---%
+
+\subsection{Greedy Heuristics}
+The most common greedy heuristic is based on \textbf{vertex degree} (the number of connections a node has).\\
+\textbf{The Logic:} A node with a lot of connections seems like a good candidate to be in a large clique. It has the most ``potential'' to be mutually connected to other nodes.
+
+\begin{breakablealgorithm}[Greedy Max Clique (Degree Based)]
+\begin{algorithmic}[1]
+    \State \textbf{Start:} Your clique $C$ is empty.
+    \State \textbf{Step 1 (The First Pick):}
+        \State Calculate the degree of every node in the graph.
+        \State Select the node with the highest degree.
+        \State Add this node (call it $v_1$) to the clique $C$.
+
+    \State \textbf{Step 2 (The Second Pick):}
+        \State Consider only the neighbors of $v_1$.
+        \State Select the node in this candidate list with the highest degree.
+        \State Add this node (call it $v_2$) to $C$.
+
+    \State \textbf{Step 3 (All Subsequent Picks):}
+    \While{candidate list is not empty}
+        \State Update the candidate list to nodes that are common neighbors of all nodes in $C$.
+        \State Select the node with the highest degree and add it to $C$.
+    \EndWhile
+    \State \textbf{End:} Stop when the candidate list becomes empty.
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\subsubsection{Time Complexity}
+Let's use $V$ for vertices and $E$ for edges, assuming an adjacency list representation.
+
+\paragraph{Analysis of the Main Loop:}
+The loop's job is to select nodes one by one to add to the clique $C$. In the worst case, the loop runs $k$ times (where $k \le V$). Thus, the outer loop is $O(V)$.
+
+Inside each of the $O(V)$ iterations:
+\begin{enumerate}
+    \item \textbf{Find Next Node:} We scan the candidate list $L$ to find the node with the maximum pre-computed degree. Since $L$ can have at most $V$ nodes, this takes $O(V)$.
+    \item \textbf{Filter Candidate List:} This is the most expensive step. We just added node $v$ to our clique. We must create a new candidate list $L_{new}$ containing only nodes in $L$ that are also neighbors of $v$.
+    \begin{itemize}
+        \item We iterate through every node $u$ in our current list $L$.
+        \item For each $u$, we check: ``Is there an edge $(u,v)$?''
+        \item With an adjacency list, checking for the edge $(u,v)$ is not $O(1)$. We must scan the adjacency list of $u$ (or $v$).
+        \item In the worst case, this check takes $O(\text{deg}(u))$ time.
+        \item Summing this over all nodes in $L$, the total work is bounded by $O(E)$.
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Work for one iteration:} $O(V) + O(E) = O(V+E)$.\\
+\textbf{Total Complexity:} 
+\[ O(V + E) + (\text{Iterations} \times \text{Work per Iteration}) \]
+\[ O(V + E) + (O(V) \times O(V + E)) = \mathbf{O(V(V+E))} \]
+This simplifies to $O(V(V+E))$ or $O(V^2+VE)$.
+
+\paragraph{Dense Graphs:} In a dense graph, the number of edges $E$ is close to $O(V^2)$.
+\[ O(V(V + V^2)) = O(V(V^2)) = \mathbf{O(V^3)} \]
+
+\subsubsection{Space Complexity}
+The space complexity is $O(V+E)$, which is dominated by the memory required to store the graph's adjacency list.
+
+\subsubsection{Worst Case Approximation Ratio}
+\paragraph{Construction:}
+We build a graph on $n$ vertices as follows. Split the vertices into two sets:
+\[
+C = \{c_1,\dots,c_{n/2}\}, \qquad
+S = \{s_1,\dots,s_{n/2}\},
+\]
+and add one special vertex $h$. If $n$ is odd, we have $(n+1)/2$ vertices in $C$.
+
+\begin{itemize}
+    \item The set $C$ forms a clique: every two vertices in $C$ are connected.
+    \item The set $S$ is an independent set: no edges among the $s_i$.
+    \item The vertex $h$ is connected to every vertex of $S$, but not to any vertex in $C$.
+\end{itemize}
+
+Thus:
+\[
+\deg(h)=|S|=\frac{n}{2}-1,
+\qquad
+\deg(c_j)=\frac{n}{2} \text{ for each } c_j.
+\]
+
+\textbf{Step 1.}  
+The algorithm picks the highest--degree node.  
+That node is $h$.
+
+\textbf{Step 2.}  
+The candidate list now becomes \emph{only the neighbors of $h$}, which is the set $S$.
+But $S$ is an independent set: none of the $s_i$ are connected to each other.
+
+\textbf{Step 3.}  
+The algorithm now looks for the highest--degree node inside $S$.  
+No matter which $s_i$ it chooses, it cannot add any more vertices afterward,
+because no two nodes in $S$ are connected.
+
+Thus:
+\[
+\text{The algorithm's clique is } C_{\text{ALG}} = \{h,s_i\}\text
+\]
+
+So the greedy algorithm finds a clique of size at most $2$.
+
+\paragraph{But the real maximum clique is large.}
+
+The set $C$ is a clique of size
+\[
+|C|=\frac{n}{2}.
+\]
+
+Therefore,
+\[
+\mathrm{OPT}=\frac{n}{2}, \qquad \mathrm{ALG}\le 2.
+\]
+
+\paragraph{Approximation Ratio:}
+
+Using the standard definition $\frac{\mathrm{OPT}}{\mathrm{ALG}}$,
+\[
+\frac{\mathrm{OPT}}{\mathrm{ALG}}
+\le
+\frac{n/2}{2}
+=
+\Theta\!\left(n\right).
+\]
+
+\subsubsection{Better Solution Quality}
+\begin{enumerate}
+    \item \textbf{Iterative Greedy:} Run the greedy algorithm $V$ times, using every node as a forced starting point. Keep the largest clique found. This ``brute forces'' the starting choice to avoid bad initial moves. Complexity: $O(V^2(V+E))$.
+    \item \textbf{K-Core Pre-processing:} Recursively remove nodes with the lowest degree until all remaining nodes have degree $\ge k$. Run greedy on the resulting ``dense'' graph (k-core). This cleans the graph of low-degree trap nodes.
+\end{enumerate}
+
+\subsubsection{Better Time Complexity: Adjacency Matrix}
+You can get a faster time complexity if you are willing to spend more space.
+\begin{itemize}
+    \item \textbf{Implementation:} Store the graph as an adjacency matrix ($O(V^2)$ space).
+    \item \textbf{Benefit:} Checking for an edge $(u,v)$ becomes $O(1)$.
+    \item \textbf{New Complexity:} $O(V^2)$ (pre-computation) + $O(V)$ (loop) $\times O(V)$ (filtering) = $\mathbf{O(V^2)}$.
+\end{itemize}
+This is a classic time-space tradeoff. You improve the time from $O(V^3)$ (for dense graphs) to $O(V^2)$ by accepting an $O(V^2)$ space cost.
+
+%-----Greedy-----%
+
+%-----Randomised Heuristics-----%
+
+\subsection{Randomised Heuristics}
+To improve upon the greedy algorithm, we use \textbf{Local Search with Random Restarts}.
+The main idea is to start with a reasonable initial clique (usually obtained through the greedy method),
+and then improve it using local modifications such as add and swap moves.
+Randomization ensures that the algorithm can escape local optima and search multiple regions of the graph.
+
+\subsubsection{The Heuristic Logic}
+
+The heuristic is based on two main ideas:
+
+\begin{itemize}
+    \item \textbf{Local Search Logic:}
+    Starting from an initial clique $C$, we consider small modifications:
+    \begin{itemize}
+        \item \emph{Add moves:} Insert a vertex adjacent to all vertices in $C$.
+        \item \emph{Swap moves (1-exchange):} Remove a vertex $u$ from $C$ and replace it with a vertex $v$ such that
+        $(C \setminus \{u\}) \cup \{v\}$ remains a clique.
+    \end{itemize}
+    These moves allow the algorithm to enlarge and refine the clique.
+
+    \item \textbf{Randomization Logic:}
+    Purely deterministic heuristics often get stuck in the same search trajectory.
+    To avoid this, the algorithm:
+    \begin{itemize}
+        \item Randomly selects among equally promising add or swap candidates,
+        \item Uses multiple random restarts from different initial vertices.
+    \end{itemize}
+    This approach trades a bit of extra running time for the chance to find larger cliques than the simple greedy method.
+\end{itemize}
+
+\begin{breakablealgorithm}[Advanced Local Search Max Clique (Randomized)]
+\label{alg:adv_local_search}
+\begin{algorithmic}[1]
+
+\State \textbf{Start:}
+\Statex \hspace{1em} Input graph $G=(V,E)$, parameters \texttt{MaxIter}, \texttt{MaxRestarts}.
+\Statex
+\State \textbf{Phase 1: Initial Clique Construction}
+\State Build an initial clique $C$ using the greedy degree-based heuristic.
+\State $\text{BestClique} \gets C$.
+\Statex
+\State \textbf{Phase 2: Local Search with Randomization}
+
+\For{$r = 1$ to \texttt{MaxRestarts}}
+    \If{$r = 1$}
+        \State $C$ is the greedy initial clique.
+    \Else
+        \State Build a new random starting clique (e.g., pick a random high-degree vertex and grow greedily).
+    \EndIf
+
+    \State $\text{iter} \gets 0$
+
+    \While{$\text{iter} < \texttt{MaxIter}$}
+        \State $\text{iter} \gets \text{iter} + 1$
+
+        %------------------ Add Step -------------------------
+        \State Compute $\text{AddCandidates}$: all $v \notin C$ adjacent to all vertices in $C$.
+        \If{$\text{AddCandidates} \neq \emptyset$}
+            \State Randomly select a vertex $v$ from $\text{AddCandidates}$.
+            \State $C \gets C \cup \{v\}$.
+            \If{$|C| > |\text{BestClique}|$}
+                \State $\text{BestClique} \gets C$.
+            \EndIf
+            \State \textbf{continue}
+        \EndIf
+
+        %------------------ Swap Step -------------------------
+        \State Compute $\text{SwapCandidates}$: all pairs $(u,v)$ where
+        \Statex \hspace{2em} $u \in C$, $v \notin C$, and $v$ is adjacent to all vertices in $C \setminus \{u\}$.
+        \If{$\text{SwapCandidates} \neq \emptyset$}
+            \State Randomly choose a pair $(u,v)$.
+            \State $C \gets (C \setminus \{u\}) \cup \{v\}$.
+            \If{$|C| > |\text{BestClique}|$}
+                \State $\text{BestClique} \gets C$.
+            \EndIf
+            \State \textbf{continue}
+        \EndIf
+
+        %------------------ No Improvement -------------------------
+        \State \textbf{break} \Comment{Local optimum reached for this restart}
+
+    \EndWhile
+
+\EndFor
+
+\State \textbf{End:} Return $\text{BestClique}$.
+
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\subsubsection{Complexity Analysis}
+\bigskip
+\paragraph{Time Complexity: \boldmath$O\big((V + RI)(V + E)\big)$}
+
+Let us use $V$ for vertices and $E$ for edges, assuming an adjacency list representation.
+Let $R = \texttt{MaxRestarts}$ and $I = \texttt{MaxIter}$.
+
+\vspace{0.5em}
+\noindent\textbf{Phase 1: Initial Greedy Clique.}  
+We first construct an initial clique using the degree-based greedy heuristic.  
+As analyzed earlier:
+
+\[
+\boxed{\,O\big(V(V + E)\big)\,}
+\]
+
+\vspace{0.75em}
+\noindent\textbf{Phase 2: Local Search with Randomization.}  
+For each restart (up to $R$ times), we perform at most $I$ local iterations.  
+Inside one iteration, the following operations occur:
+
+\begin{enumerate}
+    \item \textbf{Build AddCandidates.}  
+    We check all vertices $v \notin C$ and test adjacency with every vertex in $C$.
+    \begin{itemize}
+        \item Scanning all such vertices takes $O(V)$.
+        \item Checking adjacency via adjacency lists over all vertices costs $O(E)$.
+    \end{itemize}
+    \[
+    \text{Cost: } O(V + E)
+    \]
+
+    \item \textbf{Build SwapCandidates (if needed).}  
+    We evaluate pairs $(u,v)$ with $u \in C$, $v \notin C$, verifying adjacency to $C \setminus \{u\}$.
+    \begin{itemize}
+        \item Counting neighbors via adjacency lists costs $O(E)$ total.
+    \end{itemize}
+    \[
+    \text{Cost: } O(V + E)
+    \]
+\end{enumerate}
+
+\[
+\textbf{Work for one iteration: } O(V + E)
+\]
+
+Thus, the local search phase performs:
+
+\[
+\boxed{\,O\big(RI(V + E)\big)\,}
+\]
+
+\vspace{0.75em}
+\noindent\textbf{Total Time Complexity.}
+
+\[
+\begin{aligned}
+\text{Total} 
+  &= \underbrace{O\big(V(V + E)\big)}_{\text{initial greedy phase}}
+   +\underbrace{O\big(RI(V + E)\big)}_{\text{local search phase}} \\[0.3em]
+  &= O\big((V + RI)(V + E)\big).
+\end{aligned}
+\]
+
+If $R$ and $I$ are user-chosen constants:
+
+\[
+\boxed{\,O\big(V(V + E)\big)\,}
+\]
+
+\vspace{1em}
+\noindent\textbf{Dense Graphs.}  
+If $E = O(V^2)$:
+
+\[
+O\big((V + RI)(V + E)\big)
+= O\big((V + RI)V^2\big)
+= O(V^3) \quad
+\]
+
+For constant $R,I$:
+
+\[
+\boxed{\,O(V^3)\,}
+\]
+\bigskip
+\noindent\textbf{Sparse Graphs.}  
+If $E = O(V)$:
+
+\[
+O\big((V + RI)(V + E)\big)
+= O\big((V + RI)V\big)
+= O(RIV^2 + V^2)
+\]
+
+For constant $R,I$:
+
+\[
+\boxed{\,O(V^2)\,}
+\]
+
+\bigskip
+
+\paragraph{Space Complexity: \boldmath$O(V + E)$}
+
+The graph is stored using an adjacency list:
+
+\begin{itemize}
+    \item $O(V)$ for vertex array,
+    \item $O(E)$ for edge lists.
+\end{itemize}
+
+Additional memory used:
+
+\begin{itemize}
+    \item Current clique $C$: $O(V)$,
+    \item Best clique: $O(V)$,
+    \item Add and swap candidate lists: $O(V)$,
+    \item Auxiliary markers/degree arrays: $O(V)$.
+\end{itemize}
+
+All of these are dominated by the adjacency representation:
+
+\[
+\boxed{\,O(V + E)\,}
+\]
+\subsubsection{Approximation Ratio}
+Similar to the Greedy algorithm, the the worst case approximation ratio comes out to be $O(n)$
+
+%-----Randomised Heuristics-----%
+
+%-----SimAnn-----%
+
+\subsection{Simulated Annealing}
+Simulated Annealing is inspired by the physical process of annealing metals. A heated metal has high energy and its atoms move freely, exploring many structural states. As the metal cools, the thermal energy decreases, and the system gradually settles into a stable, low energy configuration. This physical process is mapped onto combinatorial optimization by treating the solution as a system state, and the cost (in our case, negative clique size) as the energy.
+
+\paragraph{Theoretical Background}
+
+Simulated Annealing belongs to the family of stochastic hill climbing algorithms, but improves over classical hill climbing by probabilistically allowing downhill moves. This prevents the search from getting trapped in local optima. The key theoretical components are:
+
+\paragraph{State Space}
+A state corresponds to a clique in the graph. The algorithm explores the space of all possible cliques by adding or removing vertices.
+
+\paragraph{Energy Function}
+For the Maximum Clique problem, we define:
+\[
+E(C) = -|C|
+\]
+Maximising clique size is equivalent to minimising energy.
+
+\paragraph{Boltzmann Acceptance Rule}
+Inferior solutions are accepted with probability:
+\[
+P = \exp\left(\frac{|C'|-|C|}{T}\right)
+\]
+which mirrors the Boltzmann distribution of thermal systems.
+
+\paragraph{Convergence}
+If cooled slowly enough (logarithmic cooling), Simulated Annealing is theoretically guaranteed to converge to the global optimum. Although such slow cooling is impractical, this theoretical result highlights the method’s robustness.
+
+\subsubsection{The Algorithm}
+\paragraph{Initialisation} 
+The algorithm begins by constructing an initial clique. This is done by selecting a random vertex and greedily expanding the clique by adding any vertex that is connected to all vertices already in the clique. The initial clique does not need to be large or optimal; its purpose is simply to start the search.
+
+We also set:
+\begin{itemize}
+    \item initial temperature \(T_0\)
+    \item cooling rate \(\alpha\)
+    \item maximum number of iterations
+\end{itemize}
+
+\paragraph{Neighbour Generation}
+Neighbour cliques are generated through local modifications:
+\begin{itemize}
+    \item \textbf{Addition:} Add a vertex that is adjacent to all current clique members.
+    \item \textbf{Removal:} Remove a random vertex when no valid addition exists.
+\end{itemize}
+These two operations enable both expansion and contraction, preventing stagnation.
+
+\paragraph{Acceptance Criterion}
+Let the current clique be \(C\) with size \(|C|\) and the neighbour clique be \(C'\) with size \(|C'|\). 
+If \(|C'| > |C|\), the move is accepted. If \(|C'| < |C|\), the move is accepted with probability:
+\[
+P = \exp\left(\frac{|C'| - |C|}{T}\right)
+\]
+This ensures early exploration and late exploitation.
+
+\paragraph{Cooling Schedule}
+The temperature is updated using:
+\[
+T \leftarrow \alpha T
+\]
+A value of \(\alpha\) close to 1 provides a slow cooling curve that supports extensive exploration.
+
+\paragraph{Termination}
+The search terminates when:
+\begin{itemize}
+    \item The maximum iteration limit is reached, or
+    \item The temperature becomes negligibly small.
+\end{itemize}
+Throughout the process, the algorithm tracks the best clique found.
+
+\subsubsection{Time complexity}
+We break the cost per major step and then give the overall bound.
+
+\begin{itemize}
+  \item \textbf{Initialisation (greedy clique).}  
+    Starting from one vertex and greedily adding vertices requires, in the straightforward implementation, scanning all vertices and for each candidate checking adjacency to all members of the current clique.  
+    Cost: \(\displaystyle O\bigg(\sum_{t=1}^{k} (n\cdot t)\bigg)=O(nk^2)\). In the worst case \(k=O(n)\), so initialization is \(O(n^3)\) worst-case for a naive implementation. With a more careful greedy (e.g. maintain candidate list) this can be reduced to \(O(n^2)\).
+
+  \item \textbf{Generating a neighbour.}  
+    The code uses three operations (remove, add, swap). The expensive operation is \textit{addition} (or building candidate lists for a swap): for each vertex \(v$ not in the clique we check adjacency to all $k$ current members. That costs $O(n\cdot k)$ per neighbour-generation. In the worst case $k=O(n)$, so one neighbour generation is $O(n^2)$.
+
+    The \textit{removal} operation is $O(1)$ (remove by index) + $O(1)$ bookkeeping. The \textit{swap} combines a removal ($O(1)$) with an addition-like scan, so its cost is again $O(n\cdot k)=O(n^2)$ worst-case.
+
+  \item \textbf{Clique validation.}  
+    After generating a neighbour the implementation calls an explicit clique check `is\_valid\_clique`, which checks all pairs in a candidate clique of size $k'$. This costs $O({k'}^2)\le O(n^2)$ worst-case. (Often this check will be cheaper because $k'$ is small.)
+
+  \item \textbf{Acceptance decision and cooling.}  
+    These are $O(1)$ operations per iteration.
+
+  \item \textbf{Per-iteration cost summary.}  
+    Dominant costs per iteration are neighbour generation $O(n\cdot k)$ and validation $O({k'}^2)$. In the worst case both are $O(n^2)$, so one iteration is $O(n^2)$.
+
+  \item \textbf{Total time complexity.}  
+    Over $\text{max\_iter}$ iterations the worst-case time complexity is
+    \[
+      \boxed{\,O(\text{max\_iter}\cdot n^2)\,}
+    \]
+\end{itemize}
+
+\subsubsection{Space complexity}
+\begin{itemize}
+  \item \textbf{Graph storage.} Depends on representation:
+    \begin{itemize}
+      \item Adjacency list (typical): $O(n + m)$.
+      \item Adjacency matrix: $O(n^2)$.
+    \end{itemize}
+  \item \textbf{Auxiliary space used by the algorithm.} Vectors/sets used per iteration include:
+    \begin{itemize}
+      \item \texttt{current} and \texttt{best} clique vectors: $O(n)$ worst-case.
+      \item \texttt{current\_set} (hash-set for membership): $O(n)$.
+      \item \texttt{candidates} vector: $O(n)$.
+    \end{itemize}
+    So the extra working space beyond the graph is $O(n)$.
+  \item \textbf{Total space complexity.} Thus:
+    \[
+      \boxed{\,O(n+m)\ \text{(adjacency list)}\quad\text{or}\quad O(n^2)\ \text{(adjacency matrix)} \;+\; O(n)\ \text{working space}\,}
+    \]
+\end{itemize}
+
+%-----SimAnn-----%
+
+%-----BK-----%
+
+\subsection{Bron-Kerbosch Algorithm}
+
+\subsubsection{Introduction}
+The Bron--Kerbosch algorithm provides an effective solution for the \textbf{Maximal Clique Enumeration (MCE)} problem. In graph theory, a \textbf{clique} is a subset of vertices in an undirected graph $G = (V, E)$ such that every two distinct vertices in the subset are adjacent. A \textbf{maximal clique} is a clique that is not a subset of any larger clique.
+
+The MCE problem is the task of listing \textbf{all} maximal cliques in $G$. This is an enumeration problem, which is distinct from the well-known optimization problem of finding a single \textit{maximum} clique (the clique with the largest number of vertices).
+
+The difficulty of MCE arises from the potentially enormous size of the output. Moon and Moser proved in 1965 that the number of maximal cliques in an $n$-vertex graph can reach $3^{n/3}$.\cite{moon-moser} Since the output size itself can be exponential, any algorithm solving MCE must have exponential worst-case time complexity. The related counting problem is \#P-complete.\cite{lawler}
+
+\subsubsection{Core Algorithm Mechanism: Recursive Backtracking}
+The Bron--Kerbosch algorithm is fundamentally a recursive, depth-first search that explores the space of all possible cliques. It operates by building a potential clique, vertex by vertex, and intelligently backtracking when a path is exhausted or determined to be non-maximal.
+
+\paragraph{The Three-Set Invariant ($R, P, X$).}
+The algorithm's design relies on maintaining three disjoint sets of vertices, commonly denoted $R$, $P$, and $X$. At any point in the recursion, these sets are defined relative to the current clique $R$.
+
+\begin{itemize}
+    \item \textbf{$R$ (The Clique)} contains the vertices of the clique currently being constructed---an "incomplete clique" that the algorithm attempts to extend.
+    \item \textbf{$P$ (The Candidates)} holds all vertices that can potentially be added to $R$ to form a larger clique. A crucial invariant: every vertex $v \in P$ must be adjacent to \textbf{every} vertex currently in $R$.
+    \item \textbf{$X$ (The Excluded)} contains vertices already processed and included in a maximal clique found in a previous branch. Vertices $w \in X$ maintain the same invariant as $P$: they must be adjacent to \textbf{every} vertex in $R$.
+\end{itemize}
+
+\paragraph{The Recursive Step.}
+When $\text{BronKerbosch}(R, P, X)$ is called, it first checks the base case (see below). Otherwise, it selects a vertex $v$ from $P$ and makes a recursive call:
+\[
+\text{BronKerbosch}(R \cup \{v\},\; P \cap N(v),\; X \cap N(v))
+\]
+This recursive call maintains the invariant for the new state:
+\begin{itemize}
+    \item $R' = R \cup \{v\}$: The clique is extended with vertex $v$.
+    \item $P' = P \cap N(v)$: The new candidate set $P'$ must contain vertices adjacent to all of $R'$.
+    \item $X' = X \cap N(v)$: The excluded set is restricted in the same way.
+\end{itemize}
+After this recursive call returns (meaning all maximal cliques containing $R \cup \{v\}$ have been found), the algorithm backtracks. It moves $v$ from the candidate set to the excluded set:
+\[
+P \leftarrow P \setminus \{v\}, \qquad X \leftarrow X \cup \{v\}.
+\]
+This step ensures $v$ will not be used to form a new, redundant clique in this branch of the search.
+
+\subsubsection{The Bron--Kerbosch Algorithm and Its Optimizations}
+Below we present the basic algorithm followed by two key optimizations. All versions share the fundamental $R, P, X$ logic but differ in how they select vertices from $P$ to minimize recursive calls. The pseudocode uses standard set operations ($\cup$, $\cap$, $\setminus$) and helper functions defined later.
+
+\paragraph{Basic Algorithm}
+This is the original, straightforward implementation. It iterates through all candidates in $P$ in arbitrary order and makes a recursive call for each one.
+
+\begin{breakablealgorithm}[Bron--Kerbosch (Basic Version)]
+\begin{algorithmic}[1]
+\Function{BronKerbosch\_Basic}{$R, P, X$}
+    \If{$\text{IsEmpty}(P)$ \textbf{and} $\text{IsEmpty}(X)$}
+        \State Report $R$ as a maximal clique
+        \State \Return
+    \EndIf
+    
+    \State $P_{copy} \gets \text{Copy}(P)$ \Comment{Must iterate over a copy as $P$ is modified}
+    \For{each vertex $v \in P_{copy}$}
+        \State $New\_R \gets \text{Union}(R, \{v\})$
+        \State $New\_P \gets \text{Intersection}(P, N(v))$
+        \State $New\_X \gets \text{Intersection}(X, N(v))$
+        \State \Call{BronKerbosch\_Basic}{$New\_R, New\_P, New\_X$}
+        
+        \Statex \Comment{Backtrack: Move $v$ from $P$ to $X$}
+        \State $P \gets \text{Difference}(P, \{v\})$
+        \State $X \gets \text{Union}(X, \{v\})$
+    \EndFor
+\EndFunction
+\State
+\Procedure{FindCliques}{$G$}
+    \Call{BronKerbosch\_Basic}{$\emptyset, G.V, \emptyset$}
+\EndProcedure
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\paragraph{Proof of Correctness (Sketch).}
+\begin{itemize}
+    \item \textbf{Termination:} Each recursive call moves at least one vertex from $P$ to $X$ on backtrack; since $P\cup X$ shrinks, recursion terminates.
+    \item \textbf{Completeness:} Any maximal clique $C$ will be reached by following the sequence of its vertices added to $R$; when $R=C$ we have $P=X=\emptyset$ and $C$ is reported.
+    \item \textbf{Soundness:} If $R$ is reported when $P=X=\emptyset$, no vertex outside $R$ can be adjacent to all of $R$; hence $R$ is maximal.
+    \item \textbf{No duplicates:} The $X$ set prevents re-reporting the same maximal clique.
+\end{itemize}
+
+\paragraph{Inefficiency.}
+The basic version explores all candidates in $P$, creating a recursive call for each. This produces a bushy search tree with many redundant branches—branches that the pivoting variant will prune.
+
+\subsubsection{Optimization 1: Pivoting}
+Pivoting dramatically prunes the search tree by reducing the number of loop iterations. The pivoting technique was originally described by Bron \& Kerbosch.\cite{bron-kerbosch}
+
+\paragraph{Pivoting Concept.}
+Any maximal clique $C$ must contain at least one vertex that is \textbf{not} a neighbor of some pivot vertex $u \in P \cup X$. Therefore, we can safely iterate only through $P \setminus N(u)$ rather than all of $P$. Vertices in $P \cap N(u)$ are skipped because any maximal cliques through them will be discovered via branches from $P \setminus N(u)$.
+
+\paragraph{Pivot Selection Strategy.}
+To maximize pruning, choose $u$ to minimize $|P \setminus N(u)|$, equivalently maximize $|P \cap N(u)|$. The pivot can come from either $P$ or $X$; vertices in $X$ often have high degree in $P$ and make excellent pivots.
+
+\begin{breakablealgorithm}[Bron--Kerbosch with Pivoting Optimization]
+\begin{algorithmic}[1]
+\Function{BronKerbosch\_Pivot}{$R, P, X$}
+    \If{$\text{IsEmpty}(P)$ \textbf{and} $\text{IsEmpty}(X)$}
+        \State Report $R$ as a maximal clique
+        \State \Return
+    \EndIf
+    
+    \State $u \gets \text{SelectPivot}(P, X)$ 
+    \State $P_{loop} \gets \text{Difference}(P, N(u))$
+    
+    \For{each vertex $v \in P_{loop}$}
+        \State $New\_R \gets \text{Union}(R, \{v\})$
+        \State $New\_P \gets \text{Intersection}(P, N(v))$
+        \State $New\_X \gets \text{Intersection}(X, N(v))$
+        \State \Call{BronKerbosch\_Pivot}{$New\_R, New\_P, New\_X$}
+        
+        \Statex \Comment{Backtrack: Move $v$ from $P$ to $X$}
+        \State $P \gets \text{Difference}(P, \{v\})$
+        \State $X \gets \text{Union}(X, \{v\})$
+    \EndFor
+\EndFunction
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\paragraph{Proof of Correctness (Pivoting Optimization).}
+Let $C$ be any maximal clique with $R \subseteq C$. At least one vertex $v \in C \setminus R$ belongs to $P \setminus N(u)$ for any pivot $u \in P \cup X$. If all vertices of $C\setminus R$ in $P$ were neighbors of $u$, then either $u\in C$ (contradiction) or $u$ would be adjacent to all of $C$, enabling a larger clique $C\cup\{u\}$ (contradiction). Therefore, branching on $P\setminus N(u)$ is sufficient to discover every maximal clique.
+
+\subsubsection{Optimization 2: Degeneracy Ordering}
+This optimization is particularly effective for large, sparse graphs common in real-world applications.
+
+\paragraph{Graph Degeneracy.}
+A graph's \textbf{degeneracy $d$} is the smallest value such that every non-empty subgraph contains a vertex of degree at most $d$. Computing a degeneracy ordering takes $\mathcal{O}(n + m)$ time \cite{matula-shah}.
+
+\paragraph{Algorithm Strategy.}
+Process vertices in degeneracy order $v_0, v_1, \ldots, v_{n-1}$. For each vertex $v_i$, solve the subproblem where $v_i$ is the first (earliest in the ordering) vertex of the clique, using only later vertices $\{v_{i+1}, \ldots, v_{n-1}\}$ as candidates. This ensures each maximal clique is found exactly once.
+
+\begin{breakablealgorithm}[Bron--Kerbosch with Degeneracy Ordering]
+\begin{algorithmic}[1]
+\Function{BronKerbosch\_Degeneracy}{$G$}
+    \State $Order \gets \text{ComputeDegeneracyOrder}(G)$
+    
+    \For{each vertex $v_i \in Order$}
+        \State $R \gets \{v_i\}$
+        \State $P \gets N(v_i) \cap \{v_{i+1}, ..., v_{n-1}\}$
+        \State $X \gets N(v_i) \cap \{v_0, ..., v_{i-1}\}$
+        
+        \State \Call{BronKerbosch\_Pivot}{$R, P, X$}
+    \EndFor
+\EndFunction
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\paragraph{Proof of Correctness (Degeneracy Ordering Optimization).}
+For any maximal clique $C$ let $v_i$ be its earliest vertex in the degeneracy ordering. In the subproblem for $v_i$, all other vertices of $C$ appear after $v_i$, hence $C\setminus\{v_i\}\subseteq P$. Also $X\cap C=\emptyset$ initially, so the pivoting algorithm will report $C$ in this subproblem. Uniqueness follows because any later subproblem will have at least one vertex of $C$ present in $X$, preventing reporting there.
+
+\subsubsection{Complexity Analysis}
+
+\paragraph{Time Complexity.}
+The time complexity is tied to the number of maximal cliques, which can be exponential.
+
+\begin{itemize}
+    \item \textbf{Basic:} Worst-case runtime is $O(n \cdot 3^{n/3})$ when counting the per-vertex overhead, often expressed as $O(3^{n/3})$ as the dominant term due to Moon--Moser bound.
+    \item \textbf{Pivoting:} Tomita et al. show pivoting attains the output-sensitive $O(3^{n/3})$ bound with good practical performance.
+    \item \textbf{Degeneracy:} For degeneracy $d$, complexity is $O(d \cdot n \cdot 3^{d/3})$. For small $d$ (sparse graphs) this is much better in practice.
+\end{itemize}
+
+\paragraph{Space Complexity.}
+Each recursion level stores sets $R,P,X$ of size up to $n$, and recursion depth is $\le n$, producing an $O(n^2)$ worst-case space requirement (call stack + temporary sets). Bitset or in-place intersection implementations reduce constants significantly.
+
+\subsubsection{Worst Case Time Complexity Proof}
+
+% (proof text unchanged --- omitted here for brevity)
+
+\subsubsection{Implementation Considerations}
+The theoretical efficiency is realized through concrete data structure choices: adjacency lists vs matrices, bitsets vs hash sets vs sorted arrays for sets. These trade-offs determine practical speed.
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{8pt}
+\renewcommand{\arraystretch}{1.25}
+\caption{Data Structure Trade-offs for Set Representation}
+\label{tab:datastructures_sub}
+\begin{tabularx}{\textwidth}{@{}p{3cm} >{\raggedright\arraybackslash}X >{\centering\arraybackslash}p{2.0cm} >{\centering\arraybackslash}p{1.6cm} >{\raggedright\arraybackslash}p{4.0cm}@{}}
+\toprule
+\textbf{Data Structure} & \textbf{$A \cap B$ Time} & \textbf{Add/Remove Time} & \textbf{Space} & \textbf{Best Use Case} \\
+\midrule
+Bitset
+& $\mathcal{O}(n)$ (bitwise, fast)
+& $\mathcal{O}(1)$
+& $\mathcal{O}(n)$
+& Dense graphs, small $n$ \\[6pt]
+Hash Set
+& $\mathcal{O}(\min(|A|,|B|))$
+& $\mathcal{O}(1)$ (average)
+& $\mathcal{O}(|A|)$
+& General-purpose; good when sets are medium-sized \\[6pt]
+Sorted Array
+& $\mathcal{O}(|A| + |B|)$
+& $\mathcal{O}(|A|)$
+& $\mathcal{O}(|A|)$
+& Sparse graphs or memory-critical implementations; excellent cache locality \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsubsection{Advanced Implementations: Parallelism and Optimization}
+The recursive, depth-first nature of Bron--Kerbosch can be parallelized for multi-core CPUs and adapted for GPUs with iterative batched kernels.
+
+\paragraph{Parallel CPU (Multi-Core) - PBKD}
+The degeneracy variant produces $n$ independent subproblems that can be distributed across CPU cores. Use a task queue / work-stealing scheduler; push subproblems for each degeneracy-ordered vertex and let worker threads process them. Split large subproblems dynamically to balance load. Use thread-local result buffers and occasional merges to minimize locking.
+
+\begin{breakablealgorithm}[PBKD]
+\begin{algorithmic}[1]
+\Function{PBKD}{$G=(V,E)$}
+    \State $Order \gets \text{ComputeDegeneracyOrder}(G)$
+    \State Create a concurrent work queue $Q$
+    \For{each vertex $v_i \in Order$}
+        \State $R \gets \{v_i\}$
+        \State $P \gets N(v_i) \cap \{v_{i+1},...,v_{n-1}\}$
+        \State $X \gets N(v_i) \cap \{v_0,...,v_{i-1}\}$
+        \State Push subproblem $(R,P,X)$ onto $Q$
+    \EndFor
+
+    \State Start a pool of worker threads:
+    \ForAll{worker thread}
+        \While{Q not empty}
+            \State Pop subproblem $(R_s,P_s,X_s)$ from $Q$
+            \State \Call{BronKerbosch\_Pivot}{$R_s,P_s,X_s$}
+            \If{during expansion a worker decides a subproblem is too large}
+                \State split it into child subproblems and push them onto $Q$
+            \EndIf
+        \EndWhile
+    \EndFor
+\EndFunction
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\paragraph{GPU-Based Bron--Kerbosch (GBK)}
+GPUs require transforming recursion to iterative batched kernels. Maintain an explicit work queue of subproblems in device memory. Repeatedly run kernels to (1) examine base cases, (2) select pivots, and (3) expand subproblems in parallel producing new subproblems for the next batch. Use CSR-like graph storage, compact subproblem encodings, and spill-to-host when device memory fills.
+
+\begin{breakablealgorithm}[GBK]
+\begin{algorithmic}[1]
+\Function{GBK}{$G=(V,E)$}
+    \State Sort $V=\{v_0, ..., v_{n-1}\}$ in degeneracy order
+    \State $C \gets \emptyset$ \Comment{The queue of subproblems}
+    \State $i \gets 0$
+    \Repeat
+        \While{$i \le |V|$ \textbf{and} $MEM(C) + MEM(G[\{v_i\} \cup N(v_i)]) < \text{Capacity}$}
+            \State Insert subproblem $s_i = (R=\{v_i\}, P=N(v_i)\cap\{v_{i+1},...\}, X=N(v_i)\cap\{v_0,...,v_{i-1}\})$ into $C$
+            \State $i \gets i+1$
+        \EndWhile
+
+        \State \Call{EXAMINE\_CLIQUE}{C}
+        \State $pivot\_list \gets$ \Call{SELECT\_PIVOT}{C}
+        \State $C \gets$ \Call{EXPAND\_CLIQUE}{C, pivot\_list}
+    \Until{$C = \emptyset$}
+\EndFunction
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\paragraph{GPU Kernel Helpers (Pseudocode).}
+\begin{breakablealgorithm}[Kernel: EXAMINE\_CLIQUE]
+\begin{algorithmic}[1]
+\Procedure{EXAMINE\_CLIQUE}{$C$}
+    \ForAll{subproblem $s \in C$}
+        \If{$P_s \cup X_s = \emptyset$}
+            \State Report $R_s$ as a maximal clique
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\begin{breakablealgorithm}[Kernel: SELECT\_PIVOT]
+\begin{algorithmic}[1]
+\Procedure{SELECT\_PIVOT}{$C$}
+    \ForAll{subproblem $s \in C$}
+        \State compute counts $c(u)=|P_s \cap N(u)|$ for $u \in P_s \cup X_s$
+        \State choose $u^* = \arg\max_u c(u)$
+        \State write $u^*$ to pivot\_list[s]
+    \EndFor
+    \State \Return pivot\_list
+\EndProcedure
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\begin{breakablealgorithm}[Kernel: EXPAND\_CLIQUE]
+\begin{algorithmic}[1]
+\Procedure{EXPAND\_CLIQUE}{$C, pivot\_list$}
+    \State $C_{new} \gets \emptyset$
+    \ForAll{subproblem $s \in C$}
+        \State $u \gets pivot\_list[s]$
+        \For{each $v \in P_s \setminus N(u)$}
+            \State create subproblem $s' = (R_s \cup \{v\}, P_s \cap N(v), X_s \cap N(v))$
+            \State append $s'$ to $C_{new}$
+        \EndFor
+    \EndFor
+    \State \Return $C_{new}$
+\EndProcedure
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\paragraph{Limitations and Hybrid Strategies.}
+GPU approaches excel on many small-to-medium subproblems but struggle with irregular, deeply recursive tasks. A hybrid strategy routes large, irregular subproblems to CPUs and batches many small subproblems for the GPU. Use a cost model (based on $|P|$, degeneracy, or estimated branching factor) to decide the target device.
+
+\subsubsection{Conclusion}
+The Bron--Kerbosch algorithm remains the foundation for maximal clique enumeration. The basic recursive structure is elegant and provably correct; pivoting gives dramatic practical pruning without asymptotic cost, and degeneracy ordering provides strong performance on sparse graphs. Parallel CPU implementations using degeneracy ordering scale well; GPU adaptations can give large speedups when the workload is amenable to batching and regularization. The exponential worst-case complexity is unavoidable due to exponential output size, but careful ordering, pivoting, data structures, and parallelism make enumeration feasible on many practical graphs.
+
+\subsubsection{Helper Functions and Pseudocode (Reference)}
+
+\paragraph{Helper Notation}
+\begin{itemize}
+    \item $N(v)$: neighborhood of vertex $v$.
+    \item $\text{Union}(A,B)$, $\text{Intersection}(A,B)$, $\text{Difference}(A,B)$: standard set ops.
+    \item $\text{IsEmpty}(A)$, $\text{Copy}(A)$, $|A|$ : utility helpers.
+\end{itemize}
+
+\begin{breakablealgorithm}[SelectPivot]
+\begin{algorithmic}[1]
+\Function{SelectPivot}{$P, X$}
+    \State $P_{union\_X} \gets \text{Union}(P, X)$
+    \State $best\_pivot \gets \text{any vertex in } P_{union\_X}$
+    \State $max\_neighbors\_in\_P \gets -1$
+    \For{each vertex $u \in P_{union\_X}$}
+        \State $count \gets \text{Size}(\text{Intersection}(P, N(u)))$
+        \If{$count > max\_neighbors\_in\_P$}
+            \State $max\_neighbors\_in\_P \gets count$
+            \State $best\_pivot \gets u$
+        \EndIf
+    \EndFor
+    \State \Return $best\_pivot$
+\EndFunction
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\begin{breakablealgorithm}[ComputeDegeneracyOrder]
+\begin{algorithmic}[1]
+\Function{ComputeDegeneracyOrder}{$G$}
+    \State $Degrees \gets \text{dictionary mapping vertex to degree}$
+    \State $V_{copy} \gets \text{Copy}(G.V)$
+    \State $Order \gets \text{empty list of size } n$
+    \For{each vertex $v \in V_{copy}$}
+        \State $Degrees[v] \gets \text{Size}(N(v))$
+    \EndFor
+    \For{$i \text{ from } 0 \text{ to } n-1$}
+        \Statex \Comment{Find vertex with minimum degree in $V_{copy}$}
+        \State $v_{min} \gets \text{any vertex in } V_{copy}$
+        \For{each vertex $v \in V_{copy}$}
+            \If{$Degrees[v] < Degrees[v_{min}]$}
+                \State $v_{min} \gets v$
+            \EndIf
+        \EndFor
+        \State $Order[i] \gets v_{min}$
+        \State $V_{copy} \gets \text{Difference}(V_{copy}, \{v_{min}\})$
+        \For{each vertex $u \in N(v_{min})$}
+            \If{$u \in V_{copy}$}
+                \State $Degrees[u] \gets Degrees[u] - 1$
+            \EndIf
+        \EndFor
+    \EndFor
+    \State \Return $Order$
+\EndFunction
+\end{algorithmic}
+\end{breakablealgorithm}
+
+% End of subsection
+
+%-----BK-----%
+
+%-----Oster-----%
+
+\subsection{Östergård Algorithm}
+Östergård’s method is a depth-first branch-and-bound algorithm that explores
+candidate cliques while eliminating unproductive branches early. At each step, the
+algorithm maintains a partially constructed clique and a set of candidate vertices
+that can still be added. A greedy vertex coloring provides a tight upper bound,
+allowing large reductions in the search space.
+
+\subsubsection{The Two-Set Framework (Current Clique $C$, Candidates $P$)}
+
+At each recursive step, the algorithm works with two sets:
+
+\begin{itemize}
+    \item \textbf{$C$ (The Current Clique):}  
+    The clique constructed so far in the current branch of the search.
+
+    \item \textbf{$P$ (The Candidate Set):}  
+    Vertices that can still be added to $C$.  
+    Each vertex $v \in P$ satisfies the invariant:
+    \[
+        \forall u \in C,\ (u,v) \in E.
+    \]
+\end{itemize}
+
+As recursion deepens, $C$ grows and $P$ shrinks, preserving the clique property at every step.
+
+%--------------------------------------------------------------
+\subsubsection{Coloring-Based Upper Bound}
+
+Before branching, the algorithm computes a greedy coloring of the subgraph induced
+by $P$. The number of colors provides an upper bound on how large the clique can
+grow from the current state:
+
+\[
+    |C| + \text{colors}(P)
+\]
+
+If this upper bound is not strictly greater than the size of the best clique found
+so far, the branch is pruned immediately.
+
+\medskip
+This bounding technique is highly effective: since each color class is an
+independent set, any clique can contain at most one vertex from each color.
+
+%--------------------------------------------------------------
+\subsubsection{The Recursive Extension Step}
+
+A vertex $v \in P$ is selected (typically in reverse color order), and the
+algorithm recursively extends the clique:
+
+\[
+    C' = C \cup \{v\}, \qquad
+    P' = P \cap N(v),
+\]
+
+where $N(v)$ denotes the neighborhood of $v$.
+
+\begin{itemize}
+    \item $C'$ extends the clique by adding $v$.
+    \item $P'$ restricts candidates to vertices adjacent to $v$, ensuring the clique property.
+\end{itemize}
+
+After exploring the branch with $v$, the algorithm removes $v$ from $P$ and
+continues with the next candidate.
+
+%--------------------------------------------------------------
+\subsubsection{Search-Space Pruning via Vertex Ordering}
+
+Östergård observed that processing vertices in decreasing color-index order greatly
+improves performance. Vertices appearing later in the coloring often correspond to
+dense substructures and produce large cliques earlier in the search. Once a strong
+lower bound is found, many future branches are pruned by the coloring-based upper
+bound.
+
+This combination of ordering and bounding allows the algorithm to solve many
+instances far more efficiently than naïve exhaustive search.
+
+\begin{breakablealgorithm}[Östergård Maximum Clique Algorithm]
+\begin{algorithmic}[1]
+
+\Procedure{OstergardMaxClique}{$G = (V,E)$}
+    \State order $V$ in non-increasing degree
+    \State $P \gets$ ordered list of all vertices
+    \State $C^\ast \gets \emptyset$ \Comment{best clique found so far}
+    \State \Call{BranchAndBound}{$\emptyset, P$}
+    \State \Return $C^\ast$
+\EndProcedure
+
+\vspace{0.3em}
+\Procedure{BranchAndBound}{$C, P$}
+    \If{$|C| > |C^\ast|$}
+        \State $C^\ast \gets C$ \Comment{update best solution}
+    \EndIf
+    \If{$P = \emptyset$}
+        \State \Return
+    \EndIf
+
+    \State $UB \gets$ \Call{ColorBound}{$P$}  \Comment{greedy coloring upper bound}
+    \If{$|C| + UB \le |C^\ast|$}
+        \State \Return \Comment{cannot beat current best}
+    \EndIf
+
+    \While{$P \neq \emptyset$}
+        \State $v \gets$ last vertex in $P$  \Comment{highest-priority candidate}
+        \State remove $v$ from $P$
+
+        \Comment{extra pruning using remaining candidates}
+        \If{$|C| + |P| + 1 \le |C^\ast|$}
+            \State \Return
+        \EndIf
+
+        \State $C' \gets C \cup \{v\}$
+        \State $P' \gets \emptyset$
+        \ForAll{$u \in P$}
+            \If{$u$ is adjacent to $v$ and to every vertex in $C$}
+                \State add $u$ to $P'$
+            \EndIf
+        \EndFor
+        \State \Call{BranchAndBound}{$C', P'$}
+    \EndWhile
+\EndProcedure
+
+\vspace{0.3em}
+\Procedure{ColorBound}{$P$}
+    \Comment{greedy coloring on the subgraph induced by $P$}
+    \State initialize color index $c(v)$ as undefined for all $v \in P$
+    \State $k \gets 0$ \Comment{number of colors used so far}
+    \ForAll{$v \in P$}
+        \State mark all colors as ``available''
+        \ForAll{$u \in P$ such that $u$ is adjacent to $v$ and $c(u)$ is defined}
+            \State mark color $c(u)$ as ``forbidden''
+        \EndFor
+        \State assign to $v$ the smallest available color index
+        \State $k \gets \max(k, c(v)+1)$
+    \EndFor
+    \State \Return $k$ \Comment{upper bound on clique size in $P$}
+\EndProcedure
+
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\subsubsection{Proof of Correctness}
+
+We show that Östergård’s branch-and-bound algorithm always terminates and
+returns a \emph{maximum} clique of the input graph $G = (V,E)$.
+
+Formally, let $C^\ast$ denote the best clique maintained by the algorithm.
+We prove:
+
+\begin{enumerate}
+    \item At every point in the execution, the sets $C$ (current clique) and
+          $C^\ast$ are cliques in $G$.
+    \item The algorithm always terminates.
+    \item No branch is pruned if it could still contain a clique larger than
+          $C^\ast$; hence, when the search finishes, $C^\ast$ is a maximum clique.
+\end{enumerate}
+
+%--------------------------------------------------------------
+\paragraph{Invariants: $C$ and $C^\ast$ Are Always Cliques}
+
+\paragraph{Invariant.}
+In every invocation of \textsc{BranchAndBound}$(C,P)$:
+\begin{itemize}
+    \item $C$ is a clique in $G$,
+    \item every vertex $v \in P$ is adjacent to all vertices of $C$.
+\end{itemize}
+Moreover, $C^\ast$ is always a clique.
+
+\medskip
+\noindent\textbf{Initialization.}
+At the start, we call \textsc{BranchAndBound} with $C = \emptyset$ and $P = V$.
+The empty set is trivially a clique, and every vertex is adjacent to all
+vertices in $C$ (vacuously true). We also initialize $C^\ast = \emptyset$,
+which is a clique.
+
+\medskip
+\noindent\textbf{Preservation (extension step).}
+Inside \textsc{BranchAndBound}, we select a vertex $v \in P$ and form
+\[
+    C' = C \cup \{v\}, \qquad
+    P' = \{\,u \in P \mid u \text{ adjacent to } v \text{ and to every vertex in } C\,\}.
+\]
+
+By the inductive hypothesis, $C$ is a clique and each $u \in P$ is adjacent
+to all of $C$.
+For $C'$, every pair of vertices in $C$ remains adjacent, and by construction
+$v$ is adjacent to all of $C$, so $C'$ is a clique.
+
+For $P'$, each $u \in P'$ is in $P$ and adjacent to $v$ and to all of $C$.
+Thus, $u$ is adjacent to all vertices in $C'$, so the invariant holds for the
+recursive call on $(C',P')$.
+
+\medskip
+\noindent\textbf{Preservation ($C^\ast$).}
+Whenever $|C| > |C^\ast|$, we set $C^\ast \gets C$. Since $C$ is a clique
+by the invariant, $C^\ast$ is always a clique.
+
+\medskip
+\noindent\textbf{Conclusion.}
+By induction on the depth of recursion, $C$, $P$, and $C^\ast$ satisfy the
+clique invariants in all calls.
+
+%--------------------------------------------------------------
+\paragraph{Termination}
+
+The algorithm terminates because:
+
+\begin{itemize}
+    \item Each recursive call \textsc{BranchAndBound} either:
+          \begin{itemize}
+              \item returns immediately due to a pruning condition, or
+              \item chooses a vertex $v \in P$, removes it from $P$, and recurses
+                    on a strictly smaller candidate set $P'$.
+          \end{itemize}
+    \item The recursion depth is at most $n = |V|$, since at most one vertex is
+          added to $C$ at each level.
+    \item The total number of different pairs $(C,P)$ is finite (bounded by
+          $2^n$), and no infinite chain of calls is possible because $P$ strictly
+          decreases along each branch.
+\end{itemize}
+
+Hence the search tree is finite, and every path eventually reaches a leaf
+($P = \emptyset$ or a pruning condition), so the algorithm always halts.
+
+%--------------------------------------------------------------
+\paragraph{Safety of the Coloring-Based Pruning}
+
+We now show that the pruning rule based on the coloring bound never discards
+a branch that could contain a better clique.
+
+\paragraph{Coloring bound correctness.}
+Consider a call \textsc{BranchAndBound}$(C,P)$.
+The procedure \textsc{ColorBound} performs a (possibly non-optimal) proper
+vertex coloring of the subgraph induced by $P$, using $k$ colors.
+
+By definition of a proper coloring, each color class is an independent set:
+no two vertices of the same color are adjacent.
+Therefore, any clique contained in $P$ can contain at most \emph{one} vertex
+from each color class.
+Thus, the size of any clique $Q$ with $Q \subseteq P$ satisfies
+\[
+    |Q| \le k.
+\]
+
+Since the clique extended from $C$ and $P$ must be of the form $C \cup Q$
+for some $Q \subseteq P$ that is a clique, the maximum size achievable from
+this state is bounded by
+\[
+    |C| + k.
+\]
+
+\paragraph{Pruning condition.}
+The algorithm prunes the branch whenever
+\[
+    |C| + k \le |C^\ast|.
+\]
+In this situation, any clique that can be formed by extending $C$ with vertices
+from $P$ has size at most $|C| + k \le |C^\ast|$, i.e., it cannot improve on
+the current best clique.
+
+Therefore, discarding this branch cannot prevent the algorithm from finding a
+larger clique than $C^\ast$.
+
+%--------------------------------------------------------------
+\paragraph{Exhaustiveness and Optimality}
+
+We now argue that the algorithm explores all candidate cliques that might
+exceed the size of $C^\ast$.
+
+\begin{itemize}
+    \item Every recursive call \textsc{BranchAndBound}$(C,P)$ represents all
+          cliques that can be obtained by extending $C$ with vertices from $P$.
+    \item For any clique $K$ in $G$, there exists a unique path in the search
+          tree that successively adds its vertices (in some order) to form $K$,
+          unless this path is pruned.
+    \item By the correctness of the coloring bound, a path is pruned only if
+          no extension of its current clique $C$ within $P$ can produce a
+          clique larger than $C^\ast$.
+          Thus, if $K$ is a clique with $|K| > |C^\ast|$, the branch
+          corresponding to $K$ can never be pruned before $K$ (or an equally
+          large clique) is discovered.
+\end{itemize}
+
+Consequently, when the search finishes and no further branches remain,
+there is no clique in $G$ larger than $C^\ast$.
+Hence $C^\ast$ is a maximum clique.
+
+\subsubsection{Complexity Analysis }
+
+ Let $n = |V|$ and $m = |E|$, assuming
+an adjacency-list representation of the graph.
+
+\paragraph{Time Complexity: \boldmath$O\!\left(T(n)\cdot n^{2}\right)$ (Exponential)}
+
+The algorithm consists of an initial preprocessing phase, followed by a recursive
+branch-and-bound search. The overall time is dominated by the search phase.
+
+\vspace{0.5em}
+\noindent\textbf{Phase 1: Preprocessing and Initial Ordering.}  
+
+\begin{itemize}
+    \item We compute the degree of each vertex: this takes $O(n + m)$.
+    \item We sort the vertices in non-increasing order of degree: this takes
+          $O(n \log n)$.
+\end{itemize}
+
+\[
+\boxed{\,O(n + m) + O(n \log n) = O(n \log n + m)\,}
+\]
+
+This preprocessing cost is negligible compared to the exponential search phase.
+
+\vspace{0.75em}
+\noindent\textbf{Phase 2: Branch-and-Bound Search.}  
+
+We now analyze the work done in a \emph{single} recursive call
+\textsc{BranchAndBound}$(C,P)$, and then multiply by the number of such calls.
+
+\paragraph{Cost per Recursive Node.}
+
+Let $|P| = k$ in the current call.
+
+\begin{enumerate}
+    \item \textbf{Updating the best clique.}  
+          We compare $|C|$ with $|C^\ast|$ and possibly copy $C$.
+          This costs at most $O(n)$ in the worst case, but is dominated by the
+          following steps.
+
+    \item \textbf{Coloring bound (\textsc{ColorBound}).}  
+          We perform a greedy coloring of the subgraph induced by $P$:
+          \begin{itemize}
+              \item For each vertex $v \in P$, we check its colored neighbors
+                    in $P$ and assign the smallest available color.
+              \item In the worst case, we inspect up to $k$ vertices for each
+                    of the $k$ vertices, giving $O(k^2)$ adjacency checks.
+          \end{itemize}
+          Thus:
+          \[
+              \text{Coloring cost per node} = O(k^2) \subseteq O(n^2).
+          \]
+
+    \item \textbf{Constructing the next candidate set $P'$.}  
+          For each branch on a vertex $v$, we build $P'$ by:
+          \begin{itemize}
+              \item Scanning all $u \in P$;
+              \item Checking whether $u$ is adjacent to $v$ and to every vertex
+                    in $C$.
+          \end{itemize}
+          If we assume $|C| \le n$ and adjacency queries are $O(1)$
+          (e.g., via adjacency matrix or hashed adjacency), the worst-case cost
+          per branch is $O(k \cdot |C|) \subseteq O(n^2)$.
+\end{enumerate}
+
+Combining these, the dominant work in each recursive call is bounded by
+\[
+\boxed{\,O(n^2)\,}
+\]
+for the \emph{per-node} processing (coloring and candidate filtering).
+
+\paragraph{Number of Recursive Nodes.}
+
+Let $T(n)$ denote the number of recursive calls to
+\textsc{BranchAndBound} on an $n$-vertex graph.
+
+\begin{itemize}
+    \item In the \emph{worst case}, the branch-and-bound procedure may have to
+          explore an exponential number of subsets of $V$. A crude upper bound
+          is $T(n) = O(2^n)$, corresponding to exploring essentially all subsets.
+    \item In practice, pruning via the coloring bound and size tests drastically
+          reduces $T(n)$ on many graphs, but the theoretical worst case remains
+          exponential.
+\end{itemize}
+
+\paragraph{Total Time.}
+
+Multiplying the cost per node by the number of nodes in the search tree, we obtain
+
+\[
+\boxed{\text{Total time} \;=\; O\!\left(T(n)\cdot n^{2}\right)}
+\]
+
+with
+\[
+T(n) \text{ exponential in } n,\quad
+\text{e.g. } T(n) = O(2^n) \;\Rightarrow\;
+\boxed{\,O\!\left(2^{n}\cdot n^{2}\right)\,}.
+\]
+
+\vspace{0.75em}
+\noindent\textbf{Dense vs.\ Sparse Graphs.}
+
+\begin{itemize}
+    \item \textbf{Dense graphs ($m = \Theta(n^2)$).}  
+          The induced subgraphs on candidate sets are typically dense, making
+          the greedy coloring very effective. The per-node cost remains
+          $O(n^2)$, but the strong bounds often reduce $T(n)$ in practice.
+
+    \item \textbf{Sparse graphs ($m = O(n)$).}  
+          Candidate sets may be sparser, and the coloring bound can be weaker.
+          The per-node cost $O(n^2)$ still holds as a safe upper bound.
+          In practice, $T(n)$ may grow larger for certain sparse instances,
+          but remains exponential in the worst case.
+\end{itemize}
+
+In all cases, Östergård’s algorithm is an exact exponential-time method: pruning
+improves the constant factors and practical performance but does not change the
+fundamental exponential nature of the problem.
+
+%--------------------------------------------------------------
+\paragraph{Space Complexity: \boldmath$O(n^{2} + m)$}
+
+We now estimate the memory usage.
+
+\begin{itemize}
+    \item \textbf{Graph storage.}  
+          Using an adjacency list, we store:
+          \begin{itemize}
+              \item $O(n)$ space for the vertex array,
+              \item $O(m)$ space for adjacency lists.
+          \end{itemize}
+          This contributes $O(n + m)$.
+
+    \item \textbf{Current and best cliques.}  
+          The sets $C$ and $C^\ast$ each store at most $n$ vertices:
+          \[
+              O(n) \text{ space.}
+          \]
+
+    \item \textbf{Recursion stack and candidate sets.}  
+          The recursion depth is at most $n$ (we add at most one vertex per
+          level). At each level, we store:
+          \begin{itemize}
+              \item a copy of the current clique $C$,
+              \item a candidate set $P$ for that level.
+          \end{itemize}
+          In the worst case, the sum of sizes of all candidate sets over the
+          recursion depth is bounded by
+          \[
+              n + (n-1) + \dots + 1 = O(n^2).
+          \]
+          Thus, the stack of $(C,P)$ pairs uses $O(n^2)$ space.
+
+    \item \textbf{Coloring data structures.}  
+          For computing the greedy coloring at each node, we use temporary
+          arrays (e.g.\ color assignments and availability flags) of size
+          $O(|P|) \subseteq O(n)$ per level.
+          These can be reused across calls or stored on the stack, and are
+          dominated by the $O(n^2)$ term above.
+\end{itemize}
+
+Combining these components, the overall space complexity is
+
+\[
+\boxed{\,O(n^{2} + m)\,}
+\]
+
+where $O(m)$ comes from the adjacency representation of the graph, and
+$O(n^2)$ from the recursion stack and candidate sets used by the branch-and-bound
+search.
+
+%--------Oster------%
+
+%-----MCD-----%
+
+\subsection{Max-Clique-Dyn}
+The algorithm was proposed by Konc and Janežič (2007) and is widely used due to its
+high empirical efficiency on structured graphs. Its core advantage arises from applying
+an improved greedy coloring heuristic, termed \emph{ColorSort}, on the candidate set.
+This produces a sequence of color classes and an ordering of vertices such that the
+assigned color index of a vertex gives an immediate bound on the largest clique that
+can still be formed by including that vertex.
+
+\subsubsection{Basic Notation}
+We use the notation $G = (V, E)$ with $\Gamma(v)$ denoting the neighbor set
+of vertex $v$. A partial clique is denoted by $Q$ and the \emph{best clique found so
+far} is stored in $Q_{\max}$.  
+The set $R \subseteq V$ represents the current candidate vertices that can extend $Q$
+(i.e., $R \subseteq \bigcap_{p \in Q} \Gamma(p)$).  
+At each recursive step, the algorithm examines vertices in $R$ in the order produced by
+ColorSort.
+
+\subsubsection{ColorSort and Upper-Bound Pruning}
+Given a candidate set $R$, the subgraph $G(R)$ is greedily colored using the
+ColorSort procedure: vertices are taken in descending degree order and are assigned the
+lowest available color index consistent with already colored neighbors.
+Let $C(v)$ denote the color assigned to vertex $v$.
+
+A crucial observation is:
+
+\begin{quote}
+If a vertex $v \in R$ has color $C(v)$, then any clique containing $v$ and confined to
+$R$ has size at most $C(v)$.
+\end{quote}
+
+Thus, if at any stage
+\[
+|Q| + C(v) \le |Q_{\max}|,
+\]
+there is no possibility of forming a larger clique through $v$, and the branch through
+$v$ may be pruned immediately.  
+This is the central pruning rule of MaxCliqueDyn, and it is fundamentally stronger
+than the pivot-based pruning used in the Tomita pruning algorithm.
+
+\subsubsection{Dynamic Vertex Reordering}
+Coloring quality affects pruning strength.
+MaxCliqueDyn includes an optional dynamic step:
+at recursion levels where it is beneficial (determined by an implementation parameter
+$T_{\text{limit}}$), the algorithm recomputes degrees inside $G(R \cap \Gamma(p))$
+and reorders these vertices by descending degree before reapplying ColorSort.
+This yields smaller chromatic numbers and hence tighter pruning bounds.
+The extra computation is applied selectively to keep overhead low.
+
+\begin{breakablealgorithm}[MaxCliqueDyn]
+\caption*{} % optional: kept caption visually minimal (we already printed name above)
+\begin{algorithmic}[1]
+\Require $R$: candidate list ordered by ColorSort;  
+$C$: corresponding color indices;  
+$\ell$: recursion depth.
+
+\While{$R \ne \emptyset$}
+    \State choose $p \in R$ with largest color $C(p)$  \Comment{last vertex in order}
+    \State $R := R \setminus \{p\}$
+    \If{$|Q| + C(p) > |Q_{\max}|$}
+        \State $Q := Q \cup \{p\}$
+        \State $R_p := R \cap \Gamma(p)$
+        \If{$R_p \ne \emptyset$}
+            \If{dynamic trigger condition satisfied}
+                \State recompute degrees in $G(R_p)$
+                \State sort $R_p$ by descending degree
+            \EndIf
+            \State ColorSort($R_p, C'$)
+            \State \textsc{MaxCliqueDyn}($R_p, C', \ell+1$)
+        \Else
+            \If{$|Q| > |Q_{\max}|$}
+                \State $Q_{\max} := Q$
+            \EndIf
+        \EndIf
+        \State $Q := Q \setminus \{p\}$
+    \Else
+        \State \Return  \Comment{pruned by coloring upper bound}
+    \EndIf
+\EndWhile
+\end{algorithmic}
+\end{breakablealgorithm}
+
+\subsubsection{Correctness (Sketch)}
+Correctness follows from two invariants:
+\begin{enumerate}
+    \item $Q$ is always a clique.
+    \item $R$ always contains exactly those vertices that can extend $Q$.
+\end{enumerate}
+
+Because ColorSort assigns valid color classes of $G(R)$, any clique contained in $R$
+has size at most the maximum color index in $C$.  
+Thus, if the coloring-bound pruning condition is triggered, no larger clique can be
+formed via the pruned branch.  
+Since the algorithm explores all branches not eliminated by this bound, and since the
+pruning criterion is sound, the algorithm must return a maximum clique.
+
+\subsubsection{Time and Space Complexity}
+As shown earlier, the worst time complexity of $O(3^{n/3})$ holds here also, hence
+
+\[
+T(n) = O(3^{n/3}).
+\]
+
+However, the important advantage of MaxCliqueDyn lies in its \emph{practical}
+performance:  
+\begin{itemize}
+    \item Coloring-based upper bounds often prune large parts of the search space.
+    \item Dynamic reordering improves the quality of the coloring, strengthening pruning.
+\end{itemize}
+
+Therefore MaxCliqueDyn significantly outperforms purely pivot-based pruning (such as
+the Tomita pruning algorithm) on many graphs.
+
+Space usage is dominated by storing $R$, $Q$, and coloring information at each
+recursive level, leading to a space complexity of $O(n + m)$.
+
+\textbf{Note:} BBMC is a bitset-accelerated maximum-clique algorithm belonging to the same family as Tomita-style coloring-based branch-and-bound methods. Although it shares conceptual similarity with MaxCliqueDyn, BBMC is not the same algorithm: MaxCliqueDyn incorporates additional dynamic reordering (ColorSort and selective degree recomputation), whereas BBMC focuses on bitset efficiency and static ordering strategies. But we have implemented BBMC for the benchmarking results.
+
+%-----MCD-----%
+
+%------ALgorithms----%
+
+%----Implementation Details----%
+\section{Implementation Details}
+
+%----Implementation Details---%
+
+%-----ExperimentalSetup----%
+\section{Experimental Setup}
+
+This document describes the comprehensive experimental environment, hardware configuration, software stack, and datasets used for benchmarking the different maximum clique algorithms.
+
+\subsection{Hardware Environment}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Component} & \textbf{Specification} \\
+\midrule
+Operating System & Linux (x86\_64 architecture) \\
+CPU Architecture & Multi-core x86\_64 processor \\
+Memory & System RAM (measured via \texttt{rusage}) \\
+GPU & CUDA-capable device for GPU-optimized algorithm \\
+\bottomrule
+\end{tabular}
+\caption{Hardware configuration for benchmarking experiments}
+\label{tab:hardware}
+\end{table}
+
+\subsection{Software Environment}
+
+\subsubsection{Programming Languages and Compilers}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{C++ Version:} C++17 standard
+    \item \textbf{Compiler:} GCC/G++ (compatible with C++17)
+    \item \textbf{Build System:} CMake
+    \item \textbf{Python Version:} Python 3.8+ (for dataset generation and visualization)
+    \item \textbf{CUDA:} NVIDIA CUDA Toolkit (for GPU-accelerated implementation)
+\end{itemize}
+
+\subsubsection{Core Libraries and Dependencies}
+
+\paragraph{C++ Libraries:}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Standard Template Library (STL):} Core data structures (\texttt{std::vector}, \texttt{std::set}, \texttt{std::unordered\_set})
+    \item \textbf{std::bitset:} High-performance bitwise operations for CPU-optimized algorithm (limited to 1024 vertices)
+    \item \textbf{chrono:} High-resolution timing for runtime measurements
+    \item \textbf{sys/resource.h:} Memory usage profiling via \texttt{rusage}
+\end{itemize}
+
+\paragraph{Python Libraries:}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{NumPy:} Numerical computations
+    \item \textbf{Matplotlib/Seaborn:} Visualization of benchmark results
+    \item \textbf{Pandas:} Data manipulation and analysis
+    \item \textbf{NetworkX:} Graph generation and manipulation for synthetic datasets
+    \item \textbf{Jupyter Notebook:} Interactive analysis environment
+\end{itemize}
+
+\subsubsection{Data Format}
+
+All graph datasets are stored in the standardized \textbf{DIMACS format} (.txt files), which is widely used in the graph algorithm community and competition benchmarks.
+
+\subsection{Datasets}
+
+The benchmarking suite employs \textbf{22 diverse graph datasets} spanning three major categories: real-world networks, synthetic graphs, and classic benchmark instances. This diverse collection ensures comprehensive evaluation across different graph characteristics.
+
+\subsubsection{Real-World Networks (SNAP)}
+
+Real-world networks were sourced from the Stanford Network Analysis Project (SNAP) \cite{snap}, representing actual social and collaboration networks.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrrp{5cm}}
+\toprule
+\textbf{Dataset} & \textbf{Vertices} & \textbf{Edges} & \textbf{Density} & \textbf{Description} \\
+\midrule
+facebook\_combined & 4,039 & 88,234 & 1.08\% & Social circles from Facebook \\
+twitter\_combined & 81,306 & 2,420,766 & 0.07\% & Twitter follower relationships \\
+email-Eu-core & 1,005 & 16,706 & 3.31\% & Email communication network from a European research institution \\
+ca-GrQc & 26,197 & 14,496 & $<$0.01\% & General Relativity and Quantum Cosmology collaboration network \\
+\bottomrule
+\end{tabular}
+\caption{Real-world network datasets from SNAP}
+\label{tab:real-world}
+\end{table}
+
+\textbf{Characteristics:} These graphs exhibit properties typical of real-world networks including power-law degree distributions, clustering, and varying sparsity levels.
+
+\subsubsection{Synthetic Graphs}
+
+Synthetic graphs were generated using controlled random graph models to test algorithm behavior under specific theoretical conditions.
+
+\paragraph{R-MAT Graphs (6 instances):}
+Generated using the Recursive Matrix (R-MAT) model, which produces graphs with realistic properties:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Erdős-Rényi (ER) Model:} Uniformly random edges
+    \begin{itemize}
+        \item \texttt{rmat\_er\_small.txt}: 200 vertices
+        \item \texttt{rmat\_er\_large.txt}: 500 vertices
+    \end{itemize}
+    \item \textbf{Power-Law Distribution (Scale-Free):} Two variants with different skew parameters
+    \begin{itemize}
+        \item \texttt{rmat\_sd1\_small.txt}, \texttt{rmat\_sd1\_large.txt}: Skew parameter set 1
+        \item \texttt{rmat\_sd2\_small.txt}, \texttt{rmat\_sd2\_large.txt}: Skew parameter set 2
+    \end{itemize}
+\end{itemize}
+
+\paragraph{3-SAT Derived Graphs (2 instances):}
+These graphs are generated from Boolean satisfiability (3-SAT) problems based on cryptographic hash functions:
+\begin{itemize}[leftmargin=*]
+    \item \texttt{sat3\_small.txt}: Smaller instance for faster testing
+    \item \texttt{sat3\_large.txt}: Larger instance for scalability testing
+\end{itemize}
+
+\textbf{Generation Method:} Python scripts utilizing NetworkX library with custom parameters to control graph size, density, and structural properties.
+
+\subsubsection{DIMACS Challenge Benchmark Instances (12 instances)}
+
+Classic benchmark graphs from the DIMACS Implementation Challenges and BHOSLIB library, representing some of the hardest known instances for maximum clique algorithms:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lp{8cm}}
+\toprule
+\textbf{Series} & \textbf{Description} \\
+\midrule
+\texttt{brock} series & Large graphs with high chromatic numbers; extremely challenging for exact algorithms \\
+\texttt{keller} series & Graphs derived from Keller's conjecture in discrete geometry \\
+\texttt{p\_hat} series & Random graphs with planted cliques; test algorithm robustness \\
+\texttt{C} series & Highly structured graphs with known maximum clique sizes \\
+\bottomrule
+\end{tabular}
+\caption{DIMACS benchmark graph families}
+\label{tab:dimacs}
+\end{table}
+
+\textbf{Specific Instances:}
+\begin{itemize}[leftmargin=*]
+    \item \texttt{brock400\_2.txt}, \texttt{brock400\_4.txt}
+    \item \texttt{C125.9.txt}, \texttt{C250.9.txt}
+    \item \texttt{keller4.txt}, \texttt{keller5.txt}
+    \item \texttt{p\_hat300-1.txt}, \texttt{p\_hat300-2.txt}, \texttt{p\_hat300-3.txt}
+    \item Additional challenging instances
+\end{itemize}
+
+%-----ExperimentalSetup----%
+
+%------ResultsandAnalysis---%
+
+\section{Results \& Analysis}
+\begin{table}[H]
+\centering
+\scriptsize
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l l c c c c c c c c}
+\toprule
+\textbf{Dataset} & \textbf{Metric} 
+& \textbf{Greedy} & \textbf{Randomized} & \textbf{SA} 
+& \textbf{Tomita} & \textbf{Deg-BK} & \textbf{Ostergard} 
+& \textbf{BBMC} & \textbf{MaxCliqueDyn} \\
+\midrule
+
+\multirow{C125.9.txt} 
+ & Solution & 29 & 29 & 34 & 34 & 34 & 34 & 34 & 34 \\
+ & Time (s)  & 0.00001 & 0.000206 & 0.362695 & 66.245715 & 46.729706 & 10.028437 & 1.883155 & 2.58504 \\
+\midrule
+
+\multirow{ca-GrQc.txt}
+ & Solution & 44 & 44 & 44 & 44 & 44 & 44 & 44 & 44 \\
+ & Time (s)  & 0.000208 & 0.001143 & 1.692729 & 1.800984 & 0.0575 & 0.052948 & 0.132545 & 1.81079 \\
+\midrule
+
+\multirow{email-Eu-core.txt}
+ & Solution & 17 & 17 & 17 & 18 & 18 & 18 & 18 & 18 \\
+ & Time (s)  & 0.00004 & 0.000208 & 0.390126 & 0.507383 & 0.056934 & 0.007666 & 0.013969 & 0.169661 \\
+\midrule
+
+\multirow{facebook\_combined.txt}
+ & Solution & 7 & 25 & 12 & 69 & 69 & 69 & 69 & 69 \\
+ & Time (s)  & 0.00019 & 0.000987 & 1.213225 & 11.368273 & 1.528674 & 0.834989 & 0.104042 & 2.100446 \\
+\midrule
+
+\multirow{keller4.txt}
+ & Solution & 8 & 10 & 11 & 11 & 11 & 11 & 11 & 11 \\
+ & Time (s)  & 0.000008 & 0.000101 & 0.157793 & 8.056488 & 7.87601 & 0.658235 & 0.259959 & 0.960185 \\
+\midrule
+
+\multirow{p\_hat300-1.txt}
+ & Solution & 7 & 7 & 8 & 8 & 8 & 8 & 8 & 8 \\
+ & Time (s)  & 0.000015 & 0.000152 & 0.164464 & 0.345191 & 0.218739 & 0.016039 & 0.027963 & 0.149358 \\
+\midrule
+
+\multirow {random\_180v.txt}
+ & Solution & 4 & 4 & 5 & 5 & 5 & 5 & 5 & 5 \\
+ & Time (s)  & 0.00001 & 0.000054 & 0.068592 & 0.016505 & 0.004667 & 0.000577 & 0.003069 & 0.010526 \\
+\midrule
+
+\multirow {rmat\_er\_large.txt}
+ & Solution & 3 & 4 & 4 & 4 & 4 & 4 & 4 & 4 \\
+ & Time (s)  & 0.000035 & 0.00018 & 0.170453 & 0.10371 & 0.016019 & 0.001728 & 0.012268 & 0.068697 \\
+\midrule
+
+\multirow{rmat\_er\_small.txt}
+ & Solution & 4 & 4 & 4 & 5 & 5 & 5 & 5 & 5 \\
+ & Time (s)  & 0.00001 & 0.000059 & 0.077316 & 0.016659 & 0.002213 & 0.000415 & 0.002958 & 0.010263 \\
+\midrule
+
+\multirow{rmat\_sd1\_large.txt}
+ & Solution & 8 & 8 & 9 & 9 & 9 & 9 & 9 & 9 \\
+ & Time (s)  & 0.000016 & 0.000131 & 0.235428 & 0.142578 & 0.031701 & 0.003104 & 0.008773 & 0.081984 \\
+\midrule
+
+\multirow{rmat\_sd1\_small.txt}
+ & Solution & 7 & 7 & 8 & 8 & 8 & 8 & 8 & 8 \\
+ & Time (s)  & 0.000011 & 0.00006 & 0.106435 & 0.020172 & 0.003916 & 0.000625 & 0.002718 & 0.009812 \\
+\midrule
+
+\multirow{rmat\_sd2\_large.txt}
+ & Solution & 18 & 18 & 18 & 18 & 18 & 18 & 18 & 18 \\
+ & Time (s)  & 0.000019 & 0.000157 & 0.32076 & 0.170622 & 0.055927 & 0.004815 & 0.008038 & 0.073733 \\
+\midrule
+
+\multirow{rmat\_sd2\_small.txt}
+ & Solution & 13 & 13 & 13 & 13 & 13 & 13 & 13 & 13 \\
+ & Time (s)  & 0.000011 & 0.000093 & 0.150894 & 0.01963 & 0.004857 & 0.000718 & 0.002387 & 0.007621 \\
+\midrule
+
+\multirow{sat3\_large.txt}
+ & Solution & 2 & 3 & 3 & 3 & 3 & 3 & 3 & 3 \\
+ & Time (s)  & 0.000006 & 0.000052 & 0.080861 & 0.010308 & 0.000118 & 0.000245 & 0.003354 & 0.004815 \\
+\midrule
+
+\multirow{sat3\_small.txt}
+ & Solution & 2 & 2 & 3 & 3 & 3 & 3 & 3 & 3 \\
+ & Time (s)  & 0.000009 & 0.000052 & 0.049041 & 0.002704 & 0.00005 & 0.00008 & 0.001657 & 0.00155 \\
+\bottomrule
+\end{tabular}
+}
+\caption{Comparison of clique size and time across algorithms}
+\end{table}
+
+This section presents a comparative evaluation of all implemented algorithms across the benchmark suite listed in Table 5. 
+The metrics used for comparison are (i) \textbf{solution quality} (clique size achieved) and (ii) \textbf{wall-clock runtime}.  
+Since all exact algorithms always return the true maximum clique size, solution-quality comparisons primarily distinguish between heuristics and exact methods, while runtime comparisons illustrate efficiency differences across graph families.
+
+\vspace{1em}
+\subsection*{Greedy Heuristic}
+The Greedy heuristic consistently produced the smallest clique sizes across all datasets. 
+For instance, on \texttt{facebook\_combined.txt}, where the optimal clique size is $69$, Greedy returned only $7$; on \texttt{keller4.txt} it found $8$ instead of $11$, and on \texttt{C125.9.txt} it found $29$ versus $34$.  
+Its runtime was the lowest among all algorithms (around $10^{-5}$ seconds).  
+
+\textbf{Why this happens:}  
+Greedy makes irrevocable early choices based solely on vertex degree. In structured or community-driven graphs, high-degree vertices do not necessarily participate in maximum cliques, causing the algorithm to become trapped in small candidate sets. It performs slightly better on random-like RMAT graphs, but its lack of backtracking fundamentally limits solution quality.
+
+\vspace{1em}
+\subsection*{Randomized Local Search}
+The Randomized heuristic improved modestly over Greedy, yet still fell short of optimal on several graphs. 
+Examples include \texttt{keller4.txt}, where it found $10$ vs the optimal $11$, and \texttt{facebook\_combined.txt}, where it found $25$ vs $69$. 
+Runtime remained extremely low, but solution quality lagged behind Simulated Annealing and all exact solvers.
+
+\textbf{Why this happens:}  
+Although random restarts help escape some poor local optima, the algorithm's add/swap neighborhood is limited.  
+Highly structured graphs create rugged search landscapes that the heuristic cannot navigate effectively without a stronger global bounding mechanism such as graph coloring.
+
+\vspace{1em}
+\subsection*{Simulated Annealing}
+Simulated Annealing (SA) was the strongest heuristic by a wide margin, often matching the optimal clique size. 
+It found the exact maximum on \texttt{C125.9.txt}, \texttt{keller4.txt}, and all RMAT graphs.  
+Its primary failure case was \texttt{facebook\_combined.txt}, where it found only $12$ of the optimal $69$.  
+Runtimes ranged from $0.05$ to $0.35$ seconds, making it significantly slower than simpler heuristics but still well below exact algorithms.
+
+\textbf{Why this happens:}  
+SA's acceptance of worsening moves allows exploration beyond local minima.  
+However, its local modifications remain clique-based and cannot efficiently traverse extremely complex solution surfaces, especially in dense real-world social networks where many overlapping near-cliques create misleading basins of attraction.
+
+\vspace{1em}
+\subsection*{Tomita Algorithm}
+The Tomita algorithm used in our experiments corresponds to the pivot-optimized variant of the 
+Bron--Kerbosch framework. Across all benchmarks, the Tomita (Pivot) algorithm successfully 
+found the exact maximum clique on every instance. However, its runtime exhibited significant variation: 
+while it solved sparse graphs such as \texttt{sat3\_small.txt} and \texttt{random\_180v.txt} in just a few milliseconds, 
+it required $8.06$ seconds on \texttt{keller4.txt}, over $11$ seconds on \texttt{facebook\_combined.txt}, 
+and reached $66.25$ seconds on the dense benchmark \texttt{C125.9.txt}.  
+This positioned Tomita (Pivot) consistently slower than the more advanced exact solvers like BBMC, 
+Östergård, and MaxCliqueDyn on nearly all difficult instances.
+
+\textbf{Why this happens:}  
+Pivoting alone reduces the search space by avoiding redundant branches, but without an upper-bound mechanism 
+(such as graph coloring), the algorithm still explores large recursion trees on dense or highly regular graphs. 
+When the pivot does not significantly reduce the size of the candidate set $P \setminus N(u)$---a common situation 
+in dense graphs where neighborhoods overlap heavily---the branching factor remains large, causing exponential blow-ups 
+in runtime. Unlike BBMC or MaxCliqueDyn, which incorporate strong pruning through bitset acceleration or coloring-based 
+upper bounds, Tomita (Pivot) relies purely on structural branching reduction. This makes it efficient on sparse graphs 
+(where the pivot is highly effective) but significantly less competitive on dense or symmetric datasets, explaining the 
+observed runtime spikes on \texttt{C125.9.txt}, \texttt{keller4.txt}, and \texttt{facebook\_combined.txt}.
+
+\vspace{1em}
+\subsection*{Degeneracy Bron--Kerbosch}
+The degeneracy-ordered Bron--Kerbosch variant (Deg-BK) performed exceptionally on sparse real-world graphs.  
+It solved \texttt{ca-GrQc.txt} in $0.057$ seconds and \texttt{email-Eu-core.txt} in $0.056$ seconds, outperforming both Tomita and BBMC on these instances.  
+However, on dense graphs such as \texttt{C125.9.txt}, it was among the slowest exact algorithms (over $46$ seconds).
+
+\textbf{Why this happens:}  
+Degeneracy ordering works best when the graph has low degeneracy (a hallmark of real-world networks).  
+This ensures small branching factors during recursion.  
+Dense graphs lack such low-degree pivots, causing degeneracy ordering to lose its advantage and produce large candidate sets.
+
+\vspace{1em}
+\subsection*{Östergård Algorithm}
+The Östergård algorithm was extremely stable and robust across all datasets.  
+It solved \texttt{keller4.txt} in $0.658$ seconds and \texttt{C125.9.txt} in about $10$ seconds—faster than Tomita in both cases.  
+RMAT and SAT graphs were solved in milliseconds.
+
+\textbf{Why this happens:}  
+Its complement-graph branch-and-bound strategy, combined with an efficient greedy coloring bound, yields pruning behavior that is less sensitive to graph structure.  
+This makes it more predictable than Tomita or Deg-BK and more robust across diverse graph families.
+
+\vspace{1em}
+\subsection*{BBMC (Bit-Parallel Branch \& Bound)}
+BBMC was one of the fastest exact solvers and consistently outperformed Tomita and Deg-BK on dense or difficult instances.  
+For example, it solved \texttt{C125.9.txt} in $1.88$ seconds and \texttt{keller4.txt} in $0.26$ seconds—both being the best of all exact solvers.  
+Its performance on RMAT and SAT graphs was near-instant.
+
+\textbf{Why this happens:}  
+BBMC exploits CPU-level bit parallelism to accelerate adjacency tests and set intersections.  
+Dense graphs benefit greatly from bitset representations, where entire neighborhoods can be intersected using a handful of machine operations.  
+This minimizes overhead and leads to highly stable and efficient pruning.
+
+\vspace{1em}
+\subsection*{MaxCliqueDyn}
+MaxCliqueDyn consistently matched the optimal clique size and achieved moderate runtimes across all datasets.  
+It solved \texttt{C125.9.txt} in $2.58$ seconds—dramatically faster than Tomita—and had runtimes between $0.01$ and $0.08$ seconds on RMAT and SAT graphs.  
+It was generally slower than BBMC and Östergård but significantly more stable than Tomita.
+
+\textbf{Why this happens:}  
+MaxCliqueDyn uses a strong greedy coloring bound (ColorSort) and selective dynamic reordering.  
+These techniques improve pruning quality, especially when candidate sets have uneven internal structure.  
+However, dynamic reordering introduces computational overhead, making it slower than BBMC on dense graphs where bitset operations dominate.
+
+\vspace{1em}
+\subsection*{Summary of Observations}
+Across all datasets, exact algorithms universally outperformed heuristics in solution quality, as expected.  
+Among exact solvers, BBMC and Östergård delivered the most consistent runtimes, while Tomita showed the greatest variability.  
+Deg-BK dominated sparse graphs due to degeneracy ordering, whereas BBMC excelled in dense graphs thanks to bitparallel set operations.  
+Simulated Annealing was the only heuristic capable of reaching optimal solutions on many instances, though it struggled on dense social networks.  
+Greedy and Randomized heuristics provided negligible computational overhead but produced weak solutions.
+
+\textbf{Note:} The vanilla Bron-Kerbosch Algorithm was not tested as it struggled in dense or high-vertex graphs. Yet its variants provide a characteristic picture of its performance.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\linewidth]{avg_time_comparison.png}
+    \caption{Time Comparison}
+    \label{fig:placeholder}
+\end{figure}
+\newpage
+
+\begin{figure}[htbp]
+  \centering
+
+  % ===== Row 1 =====
+  \begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{image1.png}
+    \caption{Solution quality v/s Instances}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{image2.png}
+    \caption{Time v/s Instances}
+  \end{subfigure}
+
+  \vspace{6pt}
+
+  % ===== Row 2 =====
+  \begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{image3.png}
+    \caption{Solution quality v/s Instances}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{image4.png}
+    \caption{Time v/s Instances}
+  \end{subfigure}
+
+  \vspace{6pt}
+
+  % ===== Row 3 =====
+  \begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{image5.png}
+    \caption{Solution quality v/s Instances}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{image6.png}
+    \caption{Time v/s Instances}
+  \end{subfigure}
+
+  \caption{Time and Solution Analysis}
+\end{figure}
+
+%------ResultsandAnalysis----%
+\end{document}
